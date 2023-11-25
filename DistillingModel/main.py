@@ -73,7 +73,7 @@ for mention in entities.keys():
 
     top_candidate = similarity_dict_sorted[0][0]
     if top_candidate == "NIL":
-        entities[mention] = "Unlinkable"
+        entities[mention] = "\"Unlinkable\""
     else:
         try:
             top_candidate_page = wikipedia.page(top_candidate, auto_suggest=False)
