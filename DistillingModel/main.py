@@ -7,6 +7,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 # packages used for TASK 2
 from transformers import AutoTokenizer, DistilBertForQuestionAnswering
 import torch
+import re
 
 # load the large language model file and define n_ctx manually to permit larger contexts
 llm = Llama(model_path="/Users/erynnbai/Downloads/llama-2-13b-chat.Q4_K_M.gguf", n_ctx=256)
@@ -22,8 +23,8 @@ response = output["choices"][0]["text"]
 
 # TASK 0: preprocessing
 nlp = spacy.load("en_core_web_sm")
-prompt_doc = nlp(prompt)
-response_doc = nlp(response)
+prompt_doc = nlp(prompt.strip())
+response_doc = nlp(response.strip())
 
 prompt_mentions = [str(mention) for mention in prompt_doc.ents]
 response_mentions = [str(mention) for mention in response_doc.ents]
@@ -81,7 +82,7 @@ for mention in entities.keys():
             try:
                 entities[mention] = wikipedia.page(candidates[1], auto_suggest=False).url
             except:
-                entities[mention] = "Unlinkable"
+                entities[mention] = "\"Unlinkable\""
 
 
 # TASK 2: extract answer from llama2
@@ -117,25 +118,24 @@ def extracting_answer(prompt, response):
 
 
 extracted_answer = extracting_answer(prompt, response)
-extracted_answer_doc = nlp(extracted_answer)
-extracted_answer_tokens = []
-for token in extracted_answer_doc:
-    extracted_answer_tokens.append(token.text)
+
+pattern_yes = re.compile(r'\byes\s*(?:[.,;?!])', re.IGNORECASE)
+pattern_no = re.compile(r'\bno\s*(?:[.,;?!])', re.IGNORECASE)
 
 condition = 0
-for token in extracted_answer_tokens:
-    if token == "yes":
-        extracted_answer = "yes"
-        condition = 1
-        break
-    elif token == "no":
-        extracted_answer = "no"
-        condition = 1
-        break
+if pattern_yes.search(response):
+    extracted_answer = "yes"
+    condition = 1
+elif pattern_no.search(response):
+    extracted_answer = "no"
+    condition = 1
 if condition == 0:
     for mention in entities.keys():
         if mention.lower() in extracted_answer:
-            extracted_answer = entities[mention]
+            extracted_answer = mention
+            extracted_answer_linking = entities[mention]
+if extracted_answer == "Failed to extract the answer":
+    condition = 1
 
 
 # TASK 3: judge whether the answer given by llama2 is correct
@@ -145,7 +145,10 @@ correctness = 'correct'  # correct or incorrect
 # display the output
 print("COMPLETION:")
 print(f'Text returned by the language model: "{response.strip()}"')
-print(f'Extracted answer: "{extracted_answer}"')
+if condition == 1:
+    print(f'Extracted answer: "{extracted_answer}"')
+else:
+    print(f'Extracted answer: {extracted_answer_linking}')
 print(f'Correctness of the answer: "{correctness}"')
 print("Entities extracted:")
 for mention, entity_linking in entities.items():
