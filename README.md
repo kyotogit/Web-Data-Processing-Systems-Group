@@ -8,7 +8,7 @@ Llama-2-13B-chat-GGUF下载地址：https://huggingface.co/TheBloke/Llama-2-13B-
 操作失误，上传大文件时不小心删掉了链接，sorry，只能麻烦再写一下了。
 
 ## 目前模型缺陷：
-1. TASK 1: 没有做到实体消歧；
+1. TASK 1: 没有做到实体消歧。
 2. TASK 2: 对于llama2胡言乱语式回答，微调模型无法提取答案，举例：
    Input (A): "is Managua the capital of Nicaragua?"
    
