@@ -2,24 +2,6 @@ from transformers import pipeline
 import requests
 from bs4 import BeautifulSoup
 
-triplet_extractor = pipeline(
-    'text2text-generation', model='Babelscape/rebel-large', tokenizer='Babelscape/rebel-large'
-)
-
-# prompt = 'Is Managua the capital of Nicaragua?'
-# prompt = "Obama was born in Hawaii.Yes or No?"
-# prompt = "Paris is capital of Nicaragua"
-# prompt = 'What is the capital of China?'
-prompt = "The capital of China is ...?"
-extracted_answer = 'Paris'
-correctness = ''
-
-# We need to use the tokenizer manually since we need special tokens.
-extracted_text = triplet_extractor.tokenizer.batch_decode(
-    [triplet_extractor(prompt, return_tensors=True, return_text=False)[0]["generated_token_ids"]]
-)
-print(extracted_text[0])
-
 
 # Parse the generated text and extract the triplets
 def extract_triplets(text):
@@ -100,99 +82,117 @@ def sparql_query(subj_id, obj_id):
     return data
 
 
-extracted_triplets = extract_triplets(extracted_text[0])
-print(extracted_triplets)
+triplet_extractor = pipeline(
+    'text2text-generation', model='Babelscape/rebel-large', tokenizer='Babelscape/rebel-large'
+)
 
-if extracted_answer == 'yes' or extracted_answer == 'no':
-    for triplet in extracted_triplets:
-        print(triplet['Subject'], triplet['Relation'], triplet['Object'])
-        subject_ids = get_entity_id(triplet['Subject'])
-        object_ids = get_entity_id(triplet['Object'])
-        print(subject_ids)
-        print(object_ids)
-        relation = sparql_query(subject_ids[0], object_ids[0])
-        print(relation)
-        if len(relation['results']['bindings']) == 0:
-            if extracted_answer == 'yes':
-                correctness = 'incorrect'
-            elif extracted_answer == 'no':
-                correctness = 'correct'
-        else:
-            relation_label = relation['results']['bindings'][0]['relationLabel']['value']
-            print(relation_label)
+# prompt = 'Is Managua the capital of Nicaragua?'
+# prompt = "Paris is capital of Nicaragua"
+# prompt = 'What is the capital of China?'
+# prompt = "The capital of China is ...?"
+# extracted_answer = 'Paris'
+# correctness = ''
 
-            # scrape the relationLabel page to get the relation name
-            url = relation_label
-            response = requests.get(url)
-            soup = BeautifulSoup(response.text, "html.parser")
-            span_element = soup.find("span", class_="wikibase-title-label")
-            relation_name = span_element.text
-            if relation_name in triplet['Relation'] and extracted_answer == 'yes':
-                correctness = 'correct'
-                break
-            elif relation_name in triplet['Relation'] and extracted_answer == 'no':
-                correctness = 'incorrect'
-                break
 
-    if correctness == '' and extracted_answer == 'yes':
-        correctness = 'incorrect'
-    elif correctness == '' and extracted_answer == 'no':
-        correctness = 'correct'
+def check_fact(prompt, extracted_answer, correctness):
+    # We need to use the tokenizer manually since we need special tokens.
+    extracted_text = triplet_extractor.tokenizer.batch_decode(
+        [triplet_extractor(prompt, return_tensors=True, return_text=False)[0]["generated_token_ids"]]
+    )
 
-    # check if the prompt contains negation
-    negations = ['is not', 'are not', 'isn\'t', 'aren\'t', 'was not', 'were not', 'wasn\'t', 'weren\'t']
-    for negation in negations:
-        if negation in prompt:
-            if correctness == 'correct':
-                correctness = 'incorrect'
-            elif correctness == 'incorrect':
-                correctness = 'correct'
-            break
-else:
-    for triplet in extracted_triplets:
-        print(triplet['Subject'], triplet['Relation'], triplet['Object'])
-        if len(triplet['Subject']) > 0:
+    extracted_triplets = extract_triplets(extracted_text[0])
+    # print(extracted_triplets)
+
+    if extracted_answer == 'yes' or extracted_answer == 'no':
+        for triplet in extracted_triplets:
+            # print(triplet['Subject'], triplet['Relation'], triplet['Object'])
             subject_ids = get_entity_id(triplet['Subject'])
-            if len(subject_ids) == 0:
+            object_ids = get_entity_id(triplet['Object'])
+            # print(subject_ids)
+            # print(object_ids)
+            relation = sparql_query(subject_ids[0], object_ids[0])
+            # print(relation)
+            if len(relation['results']['bindings']) == 0:
+                if extracted_answer == 'yes':
+                    correctness = 'incorrect'
+                elif extracted_answer == 'no':
+                    correctness = 'correct'
+            else:
+                relation_label = relation['results']['bindings'][0]['relationLabel']['value']
+                # print(relation_label)
+
+                # scrape the relationLabel page to get the relation name
+                url = relation_label
+                response = requests.get(url)
+                soup = BeautifulSoup(response.text, "html.parser")
+                span_element = soup.find("span", class_="wikibase-title-label")
+                relation_name = span_element.text
+                if relation_name in triplet['Relation'] and extracted_answer == 'yes':
+                    correctness = 'correct'
+                    break
+                elif relation_name in triplet['Relation'] and extracted_answer == 'no':
+                    correctness = 'incorrect'
+                    break
+
+        if correctness == '' and extracted_answer == 'yes':
+            correctness = 'incorrect'
+        elif correctness == '' and extracted_answer == 'no':
+            correctness = 'correct'
+
+        # check if the prompt contains negation
+        negations = ['is not', 'are not', 'isn\'t', 'aren\'t', 'was not', 'were not', 'wasn\'t', 'weren\'t']
+        for negation in negations:
+            if negation in prompt:
+                if correctness == 'correct':
+                    correctness = 'incorrect'
+                elif correctness == 'incorrect':
+                    correctness = 'correct'
+                break
+    else:
+        for triplet in extracted_triplets:
+            # print(triplet['Subject'], triplet['Relation'], triplet['Object'])
+            if len(triplet['Subject']) > 0:
+                subject_ids = get_entity_id(triplet['Subject'])
+                if len(subject_ids) == 0:
+                    if len(triplet['Object']) > 0:
+                        subject_ids = get_entity_id(triplet['Object'])
+                        if len(subject_ids) == 0:
+                            continue
+                    elif len(triplet['Object']) == 0:
+                        continue
+            elif len(triplet['Subject']) == 0:
                 if len(triplet['Object']) > 0:
                     subject_ids = get_entity_id(triplet['Object'])
                     if len(subject_ids) == 0:
                         continue
                 elif len(triplet['Object']) == 0:
                     continue
-        elif len(triplet['Subject']) == 0:
-            if len(triplet['Object']) > 0:
-                subject_ids = get_entity_id(triplet['Object'])
-                if len(subject_ids) == 0:
-                    continue
-            elif len(triplet['Object']) == 0:
-                continue
-        try:
-            object_ids = get_entity_id(extracted_answer)
-        except:
-            correctness = 'Unable to make a judgment based on the extracted answer'
-            break
-        print(subject_ids)
-        print(object_ids)
-        relation = sparql_query(subject_ids[0], object_ids[0])
-        print(relation)
-        if len(relation['results']['bindings']) == 0:
-                correctness = 'incorrect'
-        else:
-            relation_label = relation['results']['bindings'][0]['relationLabel']['value']
-            print(relation_label)
-
-            # scrape the relationLabel page to get the relation name
-            url = relation_label
-            response = requests.get(url)
-            soup = BeautifulSoup(response.text, "html.parser")
-            span_element = soup.find("span", class_="wikibase-title-label")
-            relation_name = span_element.text
-            if relation_name in triplet['Relation']:
-                correctness = 'correct'
+            try:
+                object_ids = get_entity_id(extracted_answer)
+            except:
+                correctness = 'Unable to make a judgment based on the extracted answer'
                 break
+            # print(subject_ids)
+            # print(object_ids)
+            relation = sparql_query(subject_ids[0], object_ids[0])
+            # print(relation)
+            if len(relation['results']['bindings']) == 0:
+                correctness = 'incorrect'
+            else:
+                relation_label = relation['results']['bindings'][0]['relationLabel']['value']
+                # print(relation_label)
 
-if correctness == '':
-    correctness = 'incorrect'
+                # scrape the relationLabel page to get the relation name
+                url = relation_label
+                response = requests.get(url)
+                soup = BeautifulSoup(response.text, "html.parser")
+                span_element = soup.find("span", class_="wikibase-title-label")
+                relation_name = span_element.text
+                if relation_name in triplet['Relation']:
+                    correctness = 'correct'
+                    break
 
-print(correctness)
+    if correctness == '':
+        correctness = 'incorrect'
+
+    return correctness
