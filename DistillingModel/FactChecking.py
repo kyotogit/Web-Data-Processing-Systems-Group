@@ -90,7 +90,7 @@ triplet_extractor = pipeline(
 # prompt = "Paris is capital of Nicaragua"
 # prompt = 'What is the capital of China?'
 # prompt = "The capital of China is ...?"
-# extracted_answer = 'Paris'
+# extracted_answer = 'Beijing'
 # correctness = ''
 
 
@@ -167,9 +167,12 @@ def check_fact(prompt, extracted_answer, correctness):
                         continue
                 elif len(triplet['Object']) == 0:
                     continue
-            try:
+
+            if len(extracted_answer) > 0:
                 object_ids = get_entity_id(extracted_answer)
-            except:
+                if len(object_ids) == 0:
+                    continue
+            elif len(extracted_answer) == 0:
                 correctness = 'Unable to make a judgment based on the extracted answer'
                 break
             # print(subject_ids)
@@ -196,3 +199,6 @@ def check_fact(prompt, extracted_answer, correctness):
         correctness = 'incorrect'
 
     return correctness
+
+
+print(check_fact(prompt, extracted_answer, correctness))
