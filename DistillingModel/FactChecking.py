@@ -201,4 +201,4 @@ def check_fact(prompt, extracted_answer, correctness):
     return correctness
 
 
-print(check_fact(prompt, extracted_answer, correctness))
+# print(check_fact(prompt, extracted_answer, correctness))
