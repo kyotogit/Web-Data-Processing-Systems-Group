@@ -20,5 +20,5 @@ Is Managua the capital"
 3. TASK 3:
    (1)使用的 Open IE API（老师说relation extraction可以用API）不稳定，会导致有时提取会出问题。
 
-   (2)只以wikidata为事实来源，所以导致不在wikidata上的relation无法判断真假。（但我看作业只要求了knowledge base，并没有要求web contents，但有肯定更好）
+   (2)只以wikidata为事实来源，所以导致不在wikidata上的relation无法判断真假。（但我看作业只要求了knowledge base，并没有要求web content，但有肯定更好）
    
