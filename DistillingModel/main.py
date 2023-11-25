@@ -8,6 +8,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 from transformers import AutoTokenizer, DistilBertForQuestionAnswering
 import torch
 import re
+# packages used for TASK 3
+import FactChecking
 
 # load the large language model file and define n_ctx manually to permit larger contexts
 llm = Llama(model_path="/Users/erynnbai/Downloads/llama-2-13b-chat.Q4_K_M.gguf", n_ctx=256)
@@ -139,7 +141,8 @@ if extracted_answer == "Failed to extract the answer":
 
 
 # TASK 3: judge whether the answer given by llama2 is correct
-correctness = 'correct'  # correct or incorrect
+correctness = ''  # correct or incorrect
+correctness = FactChecking.check_fact(prompt, extracted_answer, correctness)
 
 
 # display the output
