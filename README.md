@@ -23,6 +23,7 @@ Is Managua the capital"
    (2)只以wikidata为事实来源，所以导致不在wikidata上的relation无法判断真假。（但我看作业只要求了knowledge base，并没有要求web content，但有肯定更好）
    
 ## 参考  
+https://github.com/JamWithBread/WDPS-Project2022  
 https://github.com/straightedge77/wdps2126  
 https://github.com/DoxopoulosPanos/WebData_assignment  
 https://github.com/bennokr/wdps  
