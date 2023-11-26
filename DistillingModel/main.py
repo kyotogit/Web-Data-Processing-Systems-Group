@@ -2,6 +2,8 @@ from llama_cpp import Llama
 import spacy
 # packages used for TASK 1
 import wikipedia
+import requests
+from bs4 import BeautifulSoup
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 # packages used for TASK 2
@@ -82,7 +84,18 @@ for mention in entities.keys():
             entities[mention] = top_candidate_page.url
         except:
             try:
-                entities[mention] = wikipedia.page(candidates[1], auto_suggest=False).url
+                url = "https://en.wikipedia.org/wiki/" + top_candidate
+                response = requests.get(url)
+                soup = BeautifulSoup(response.text, "html.parser")
+
+                target_div_class = "mw-content-ltr mw-parser-output"
+                target_div = soup.find("div", class_=target_div_class)
+                ul_tag = target_div.find("ul")
+                first_li_tag = ul_tag.find("li")
+                a_tag = first_li_tag.find("a")
+                title = a_tag.get("title")
+                top_candidate_page = wikipedia.page(title, auto_suggest=False)
+                entities[mention] = top_candidate_page.url
             except:
                 entities[mention] = "\"Unlinkable\""
 
