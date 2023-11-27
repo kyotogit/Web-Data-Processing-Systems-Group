@@ -63,16 +63,16 @@ def prepare_train_features(examples):
             tokenized_examples["start_positions"].append(cls_index)
             tokenized_examples["end_positions"].append(cls_index)
         else:
-            # The start and end positions of the answer at character-level
+            # The start and end positions of the answer at character-based level
             start_char = answers["answer_start"][0]
             end_char = start_char + len(answers["text"][0])
 
-            # Find the start position at token-level
+            # Find the start position at token-based level
             token_start_index = 0
             while sequence_ids[token_start_index] != (1 if pad_on_right else 0):
                 token_start_index += 1
 
-            # Find the end position at token-level
+            # Find the end position at token-based level
             token_end_index = len(input_ids) - 1
             while sequence_ids[token_end_index] != (1 if pad_on_right else 0):
                 token_end_index -= 1
@@ -84,7 +84,7 @@ def prepare_train_features(examples):
                 tokenized_examples["start_positions"].append(cls_index)
                 tokenized_examples["end_positions"].append(cls_index)
             else:
-                # if not, find the start and end positions of the answer at token-level
+                # if not, find the start and end positions of the answer at token-based level
                 # NB: we could go after the last offset if the answer is the last word (edge case)
                 while token_start_index < len(offsets) and offsets[token_start_index][0] <= start_char:
                     token_start_index += 1
