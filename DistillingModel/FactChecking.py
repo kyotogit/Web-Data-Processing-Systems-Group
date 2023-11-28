@@ -57,41 +57,92 @@ def get_entity_id(entity):
     data = fetch_wikidata(params)
     data = data.json()
     # print(json.dumps(data, indent=5, ensure_ascii=False))
+    entity_id = data['search'][0]['id']
 
-    entity_ids = []
-    for item in data['search']:
-        entity_ids.append(item['id'])
-
-    return entity_ids
+    return entity_id
 
 
 # Perform a SPARQL query to get the relation between two entities
-def sparql_query(subj_id, obj_id):
-    url = 'https://query.wikidata.org/sparql'
+def sparql_query_wikidata(subj, obj):
+    if len(subj) == 0 or len(obj) == 0:
+        relation = 'No relation found'
+    else:
+        subj_id = get_entity_id(subj)
+        obj_id = get_entity_id(obj)
+
+        url = 'https://query.wikidata.org/sparql'
+        query = """
+        SELECT ?relationLabel
+        WHERE {{
+          wd:{} ?relation wd:{}.
+          SERVICE wikibase:label {{ bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }}
+        }}
+        """
+        query = query.format(subj_id, obj_id)
+
+        r = requests.get(url, params={'format': 'json', 'query': query})
+        data = r.json()
+        if len(data['results']['bindings']) == 0:
+            relation = 'No relation found'
+        else:
+            relation_label = data['results']['bindings'][0]['relationLabel']['value']
+            # scrape the relationLabel page to get the relation name
+            url = relation_label
+            response = requests.get(url)
+            soup = BeautifulSoup(response.text, "html.parser")
+            span_element = soup.find("span", class_="wikibase-title-label")
+            relation = span_element.text
+
+    return relation
+
+
+def sparql_query_dbpedia(subj, obj):
+    subj = subj.replace(' ', '_')
+    obj = obj.replace(' ', '_')
+    url = 'https://dbpedia.org/sparql/'
     query = """
-    SELECT ?relationLabel
+    SELECT ?p
     WHERE {{
-      wd:{} ?relation wd:{}.
-      SERVICE wikibase:label {{ bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }}
+      <http://dbpedia.org/resource/{}> ?p <http://dbpedia.org/resource/{}>.
     }}
     """
-    query = query.format(subj_id, obj_id)
+    query = query.format(subj, obj)
 
     r = requests.get(url, params={'format': 'json', 'query': query})
     data = r.json()
-    return data
+    relation = ''
+    if len(data['results']['bindings']) == 0:
+        relation = 'No relation found'
+    else:
+        for i in range(len(data['results']['bindings'])):
+            rlink = data['results']['bindings'][i]['p']['value']
+            if 'wikiPageWikiLink' in rlink:
+                continue
+            elif 'property' in rlink:
+                relation = rlink.replace('http://dbpedia.org/property/', '')
+                break
+            elif 'ontology' in rlink:
+                relation = rlink.replace('http://dbpedia.org/ontology/', '')
+                break
 
+    return relation
+
+
+# print(sparql_query_wikidata("Nicaragua", "Managua"))
+# print(sparql_query_wikidata('Barack Obama', ''))
+# print(sparql_query_dbpedia('Nicaragua', 'Managua'))
 
 triplet_extractor = pipeline(
     'text2text-generation', model='Babelscape/rebel-large', tokenizer='Babelscape/rebel-large'
 )
 
-# prompt = 'Is Managua the capital of Nicaragua?'
+prompt = 'Is Beijing the capital of China?'
 # prompt = "Paris is capital of Nicaragua"
 # prompt = 'What is the capital of China?'
 # prompt = "The capital of China is ...?"
-# extracted_answer = 'Beijing'
-# correctness = ''
+# prompt = "Obama was born in Hawaii."
+extracted_answer = 'no'
+correctness = ''
 
 
 def check_fact(prompt, extracted_answer, correctness):
@@ -101,38 +152,21 @@ def check_fact(prompt, extracted_answer, correctness):
     )
 
     extracted_triplets = extract_triplets(extracted_text[0])
-    # print(extracted_triplets)
+    print(extracted_triplets)
 
-    if extracted_answer == 'yes' or extracted_answer == 'no':
+    if extracted_answer in ['yes', 'no']:
         for triplet in extracted_triplets:
-            # print(triplet['Subject'], triplet['Relation'], triplet['Object'])
-            subject_ids = get_entity_id(triplet['Subject'])
-            object_ids = get_entity_id(triplet['Object'])
-            # print(subject_ids)
-            # print(object_ids)
-            relation = sparql_query(subject_ids[0], object_ids[0])
-            # print(relation)
-            if len(relation['results']['bindings']) == 0:
-                if extracted_answer == 'yes':
-                    correctness = 'incorrect'
-                elif extracted_answer == 'no':
-                    correctness = 'correct'
-            else:
-                relation_label = relation['results']['bindings'][0]['relationLabel']['value']
-                # print(relation_label)
+            relations = []
+            relations.append(sparql_query_wikidata(triplet['Subject'], triplet['Object']))
+            relations.append(sparql_query_dbpedia(triplet['Subject'], triplet['Object']))
+            print(relations)
 
-                # scrape the relationLabel page to get the relation name
-                url = relation_label
-                response = requests.get(url)
-                soup = BeautifulSoup(response.text, "html.parser")
-                span_element = soup.find("span", class_="wikibase-title-label")
-                relation_name = span_element.text
-                if relation_name in triplet['Relation'] and extracted_answer == 'yes':
-                    correctness = 'correct'
-                    break
-                elif relation_name in triplet['Relation'] and extracted_answer == 'no':
-                    correctness = 'incorrect'
-                    break
+            if triplet['Relation'] in relations and extracted_answer == 'yes':
+                correctness = 'correct'
+                break
+            elif triplet['Relation'] in relations and extracted_answer == 'no':
+                correctness = 'incorrect'
+                break
 
         if correctness == '' and extracted_answer == 'yes':
             correctness = 'incorrect'
@@ -140,7 +174,11 @@ def check_fact(prompt, extracted_answer, correctness):
             correctness = 'correct'
 
         # check if the prompt contains negation
-        negations = ['is not', 'are not', 'isn\'t', 'aren\'t', 'was not', 'were not', 'wasn\'t', 'weren\'t']
+        negations = [
+            'is not', 'are not', 'isn\'t', 'aren\'t',
+            'was not', 'were not', 'wasn\'t', 'weren\'t',
+            'does not', 'do not', 'doesn\'t', 'don\'t',
+        ]
         for negation in negations:
             if negation in prompt:
                 if correctness == 'correct':
@@ -148,57 +186,24 @@ def check_fact(prompt, extracted_answer, correctness):
                 elif correctness == 'incorrect':
                     correctness = 'correct'
                 break
+
     else:
         for triplet in extracted_triplets:
-            # print(triplet['Subject'], triplet['Relation'], triplet['Object'])
-            if len(triplet['Subject']) > 0:
-                subject_ids = get_entity_id(triplet['Subject'])
-                if len(subject_ids) == 0:
-                    if len(triplet['Object']) > 0:
-                        subject_ids = get_entity_id(triplet['Object'])
-                        if len(subject_ids) == 0:
-                            continue
-                    elif len(triplet['Object']) == 0:
-                        continue
-            elif len(triplet['Subject']) == 0:
-                if len(triplet['Object']) > 0:
-                    subject_ids = get_entity_id(triplet['Object'])
-                    if len(subject_ids) == 0:
-                        continue
-                elif len(triplet['Object']) == 0:
-                    continue
+            relations = []
+            relations.append(sparql_query_wikidata(triplet['Subject'], extracted_answer))
+            relations.append(sparql_query_wikidata(extracted_answer, triplet['Object']))
+            relations.append(sparql_query_dbpedia(triplet['Subject'], extracted_answer))
+            relations.append(sparql_query_dbpedia(extracted_answer, triplet['Object']))
+            print(relations)
 
-            if len(extracted_answer) > 0:
-                object_ids = get_entity_id(extracted_answer)
-                if len(object_ids) == 0:
-                    continue
-            elif len(extracted_answer) == 0:
-                correctness = 'Unable to make a judgment based on the extracted answer'
+            if triplet['Relation'] in relations:
+                correctness = 'correct'
                 break
-            # print(subject_ids)
-            # print(object_ids)
-            relation = sparql_query(subject_ids[0], object_ids[0])
-            # print(relation)
-            if len(relation['results']['bindings']) == 0:
-                correctness = 'incorrect'
-            else:
-                relation_label = relation['results']['bindings'][0]['relationLabel']['value']
-                # print(relation_label)
 
-                # scrape the relationLabel page to get the relation name
-                url = relation_label
-                response = requests.get(url)
-                soup = BeautifulSoup(response.text, "html.parser")
-                span_element = soup.find("span", class_="wikibase-title-label")
-                relation_name = span_element.text
-                if relation_name in triplet['Relation']:
-                    correctness = 'correct'
-                    break
-
-    if correctness == '':
-        correctness = 'incorrect'
+        if correctness == '':
+            correctness = 'incorrect'
 
     return correctness
 
 
-# print(check_fact(prompt, extracted_answer, correctness))
+print(check_fact(prompt, extracted_answer, correctness))
