@@ -1,6 +1,8 @@
 from transformers import pipeline
 import requests
 from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 
 
 # Parse the generated text and extract the triplets
@@ -62,10 +64,28 @@ def get_entity_id(entity):
     return entity_id
 
 
+# Fetch the name and aliases of the relation obtained from Wikidata
+def fetch_name_and_aliases_wikidata(url):
+    relations = []
+    # Scrape the relationLabel page to get the name of the relation
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, "html.parser")
+    span_element = soup.find("span", class_="wikibase-title-label")
+    relations.append(span_element.text)
+    # Scrape the relationLabel page to get all the aliases of the relation
+    ul_tag = soup.find("ul", class_="wikibase-entitytermsview-aliases")
+    if ul_tag:
+        li_tags = ul_tag.find_all("li")
+        for li_tag in li_tags:
+            relations.append(li_tag.text)
+
+    return relations
+
+
 # Perform a SPARQL query to get the relation between two entities
 def sparql_query_wikidata(subj, obj):
     if len(subj) == 0 or len(obj) == 0:
-        relation = 'No relation found'
+        relations = ['No relation found']
     else:
         subj_id = get_entity_id(subj)
         obj_id = get_entity_id(obj)
@@ -83,17 +103,47 @@ def sparql_query_wikidata(subj, obj):
         r = requests.get(url, params={'format': 'json', 'query': query})
         data = r.json()
         if len(data['results']['bindings']) == 0:
-            relation = 'No relation found'
+            relations = ['No relation found']
         else:
             relation_label = data['results']['bindings'][0]['relationLabel']['value']
-            # scrape the relationLabel page to get the relation name
-            url = relation_label
-            response = requests.get(url)
-            soup = BeautifulSoup(response.text, "html.parser")
-            span_element = soup.find("span", class_="wikibase-title-label")
-            relation = span_element.text
+            relations = fetch_name_and_aliases_wikidata(relation_label)
 
-    return relation
+    return relations
+
+
+# Fetch the name and aliases of the relation obtained from DBpedia
+def fetch_name_and_aliases_dbpedia(url):
+    # Start the browser driver, configure the relevant parameters to prevent the browser window from popping up
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    driver = webdriver.Chrome(options=chrome_options)
+    # Open the webpage
+    driver.get(url)
+    # Execute JavaScript code to load dynamic data
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    # Fetch the webpage source code
+    html = driver.page_source
+    # Close the browser driver
+    driver.quit()
+
+    # Fetch the link of equivalent property of Wikidata
+    soup = BeautifulSoup(html, 'html.parser')
+    try:
+        a_tags = soup.find_all("a", class_="uri", rel="owl:equivalentProperty")
+        for a_tag in a_tags:
+            href = a_tag.get("href")
+            if "wikidata.org" in href:
+                wiki_url = href.replace("http://www.wikidata.org/entity/", "https://www.wikidata.org/wiki/Property:")
+                break
+    except:
+        wiki_url = ''
+
+    print("wiki_url: ", wiki_url)
+    relations = []
+    if wiki_url != '':
+        relations = fetch_name_and_aliases_wikidata(wiki_url)
+
+    return relations
 
 
 def sparql_query_dbpedia(subj, obj):
@@ -110,39 +160,42 @@ def sparql_query_dbpedia(subj, obj):
 
     r = requests.get(url, params={'format': 'json', 'query': query})
     data = r.json()
-    relation = ''
     if len(data['results']['bindings']) == 0:
-        relation = 'No relation found'
+        relations = ['No relation found']
     else:
+        relations = []
         for i in range(len(data['results']['bindings'])):
-            rlink = data['results']['bindings'][i]['p']['value']
-            if 'wikiPageWikiLink' in rlink:
+            r_url = data['results']['bindings'][i]['p']['value']
+            if 'wikiPageWikiLink' in r_url:
                 continue
-            elif 'property' in rlink:
-                relation = rlink.replace('http://dbpedia.org/property/', '')
-                break
-            elif 'ontology' in rlink:
-                relation = rlink.replace('http://dbpedia.org/ontology/', '')
-                break
+            elif 'property' in r_url:
+                relation = r_url.replace('http://dbpedia.org/property/', '')
+                relations.append(relation)
+            elif 'ontology' in r_url:
+                relation = fetch_name_and_aliases_dbpedia(r_url)
+                for item in relation:
+                    relations.append(item)
 
-    return relation
+    return relations
 
 
 # print(sparql_query_wikidata("Nicaragua", "Managua"))
-# print(sparql_query_wikidata('Barack Obama', ''))
+# print(sparql_query_wikidata('Barack Obama', 'Hawaii'))
 # print(sparql_query_dbpedia('Nicaragua', 'Managua'))
+# print(sparql_query_dbpedia('Barack Obama', 'Hawaii'))
+
+# prompt = 'Is Beijing the capital of China?'
+# prompt = "Paris is capital of Nicaragua"
+prompt = 'What is the capital of Nicaragua?'
+# prompt = "The capital of China is ..."
+# prompt = "Barack Obama was born in Hawaii. Yes or no?"
+# extracted_answer = 'yes'
+extracted_answer = 'Beijing'
+correctness = ''
 
 triplet_extractor = pipeline(
     'text2text-generation', model='Babelscape/rebel-large', tokenizer='Babelscape/rebel-large'
 )
-
-prompt = 'Is Beijing the capital of China?'
-# prompt = "Paris is capital of Nicaragua"
-# prompt = 'What is the capital of China?'
-# prompt = "The capital of China is ...?"
-# prompt = "Obama was born in Hawaii."
-extracted_answer = 'no'
-correctness = ''
 
 
 def check_fact(prompt, extracted_answer, correctness):
@@ -157,8 +210,13 @@ def check_fact(prompt, extracted_answer, correctness):
     if extracted_answer in ['yes', 'no']:
         for triplet in extracted_triplets:
             relations = []
-            relations.append(sparql_query_wikidata(triplet['Subject'], triplet['Object']))
-            relations.append(sparql_query_dbpedia(triplet['Subject'], triplet['Object']))
+            relations_list = []
+            relations_list.append(sparql_query_wikidata(triplet['Subject'], triplet['Object']))
+            relations_list.append(sparql_query_dbpedia(triplet['Subject'], triplet['Object']))
+            print(relations_list)
+            for item in relations_list:
+                for relation in item:
+                    relations.append(relation)
             print(relations)
 
             if triplet['Relation'] in relations and extracted_answer == 'yes':
@@ -173,7 +231,7 @@ def check_fact(prompt, extracted_answer, correctness):
         elif correctness == '' and extracted_answer == 'no':
             correctness = 'correct'
 
-        # check if the prompt contains negation
+        # Check if the prompt contains negation
         negations = [
             'is not', 'are not', 'isn\'t', 'aren\'t',
             'was not', 'were not', 'wasn\'t', 'weren\'t',
@@ -190,10 +248,15 @@ def check_fact(prompt, extracted_answer, correctness):
     else:
         for triplet in extracted_triplets:
             relations = []
-            relations.append(sparql_query_wikidata(triplet['Subject'], extracted_answer))
-            relations.append(sparql_query_wikidata(extracted_answer, triplet['Object']))
-            relations.append(sparql_query_dbpedia(triplet['Subject'], extracted_answer))
-            relations.append(sparql_query_dbpedia(extracted_answer, triplet['Object']))
+            relations_list = []
+            relations_list.append(sparql_query_wikidata(triplet['Subject'], extracted_answer))
+            relations_list.append(sparql_query_wikidata(extracted_answer, triplet['Object']))
+            relations_list.append(sparql_query_dbpedia(triplet['Subject'], extracted_answer))
+            relations_list.append(sparql_query_dbpedia(extracted_answer, triplet['Object']))
+            print(relations_list)
+            for item in relations_list:
+                for relation in item:
+                    relations.append(relation)
             print(relations)
 
             if triplet['Relation'] in relations:
