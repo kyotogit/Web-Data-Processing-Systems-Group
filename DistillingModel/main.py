@@ -17,7 +17,7 @@ import FactChecking
 llm = Llama(model_path="/Users/erynnbai/Downloads/llama-2-13b-chat.Q4_K_M.gguf", n_ctx=256)
 
 # create a text prompt
-prompt = input("Type your question (for instance: \"The capital of Italy is ...?\") and type ENTER to finish:\n")
+prompt = input("Type your question (for instance: \"The capital of Italy is ...\") and type ENTER to finish:\n")
 print("Computing the answer (can take some time)...")
 
 # generate a response, set max_tokens to 0 to remove the response size limit
