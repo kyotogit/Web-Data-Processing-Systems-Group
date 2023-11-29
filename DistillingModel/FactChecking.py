@@ -38,16 +38,9 @@ def extract_triplets(text):
     return triplets
 
 
-def fetch_wikidata(params):
-    url = 'https://www.wikidata.org/w/api.php'
-    try:
-        return requests.get(url, params=params)
-    except:
-        return 'There was an error'
-
-
 # Fetch the Wikidata ID of the entity
 def fetch_entity_id(entity):
+    url = 'https://www.wikidata.org/w/api.php'
     params = {
         'action': 'wbsearchentities',
         'format': 'json',
@@ -56,10 +49,14 @@ def fetch_entity_id(entity):
         'type': 'item',
     }
 
-    data = fetch_wikidata(params)
-    data = data.json()
-    # print(json.dumps(data, indent=5, ensure_ascii=False))
-    entity_id = data['search'][0]['id']
+    entity_id = ''
+    try:
+        data = requests.get(url, params=params)
+        data = data.json()
+        # print(json.dumps(data, indent=5, ensure_ascii=False))
+        entity_id = data['search'][0]['id']
+    except:
+        pass
 
     return entity_id
 
@@ -206,12 +203,12 @@ def sparql_query_dbpedia(subj, obj):
 # print(sparql_query_dbpedia('Barack Obama', 'Hawaii'))
 
 # prompt = 'Is Beijing the capital of China?'
-# prompt = "Paris is capital of Nicaragua"
+# prompt = "Paris is capital of Nicaragua. Yes or no?
 # prompt = 'What is the capital of Nicaragua?'
-# prompt = "The capital of China is ..."
-prompt = "Barack Obama was born in Hawaii. Yes or no?"
-extracted_answer = 'yes'
-# extracted_answer = 'Beijing'
+prompt = "The capital of China is ..."
+# prompt = "Barack Obama was born in Hawaii. Yes or no?"
+# extracted_answer = 'yes'
+extracted_answer = 'Beijing'
 correctness = ''
 
 triplet_extractor = pipeline(
