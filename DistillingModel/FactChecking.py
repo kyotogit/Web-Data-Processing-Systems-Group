@@ -66,18 +66,28 @@ def fetch_entity_id(entity):
 
 # Fetch the name and aliases of the relation obtained from Wikidata
 def fetch_name_and_aliases_wikidata(url):
-    relations = []
-    # Scrape the relationLabel page to get the name of the relation
     response = requests.get(url)
     soup = BeautifulSoup(response.text, "html.parser")
-    span_element = soup.find("span", class_="wikibase-title-label")
-    relations.append(span_element.text)
+    relations = []
+
+    # Scrape the relationLabel page to get the name of the relation
+    try:
+        span_element = soup.find("span", class_="wikibase-title-label")
+        relation_name = span_element.text
+        relations.append(relation_name)
+    except:
+        pass
+
     # Scrape the relationLabel page to get all the aliases of the relation
-    ul_tag = soup.find("ul", class_="wikibase-entitytermsview-aliases")
-    if ul_tag:
-        li_tags = ul_tag.find_all("li")
-        for li_tag in li_tags:
-            relations.append(li_tag.text)
+    try:
+        ul_tag = soup.find("ul", class_="wikibase-entitytermsview-aliases")
+        if ul_tag:
+            li_tags = ul_tag.find_all("li")
+            for li_tag in li_tags:
+                relaton_alias = li_tag.text
+                relations.append(relaton_alias)
+    except:
+        pass
 
     return relations
 
@@ -126,8 +136,18 @@ def fetch_name_and_aliases_dbpedia(url):
     # Close the browser driver
     driver.quit()
 
-    # Fetch the link of equivalent property of Wikidata
     soup = BeautifulSoup(html, 'html.parser')
+    relations = []
+
+    # Fetch the name of the relation
+    try:
+        span_tag = soup.find("span", property="rdfs:label", lang="en")
+        relation_name = span_tag.text
+        relations.append(relation_name)
+    except:
+        pass
+
+    # Fetch the aliases of the relation (through the link of equivalent property)
     try:
         a_tags = soup.find_all("a", class_="uri", rel="owl:equivalentProperty")
         for a_tag in a_tags:
@@ -135,13 +155,12 @@ def fetch_name_and_aliases_dbpedia(url):
             if "wikidata.org" in href:
                 wiki_url = href.replace("http://www.wikidata.org/entity/", "https://www.wikidata.org/wiki/Property:")
                 break
-    except:
-        wiki_url = ''
 
-    print("wiki_url: ", wiki_url)
-    relations = []
-    if wiki_url != '':
-        relations = fetch_name_and_aliases_wikidata(wiki_url)
+        relation_aliases = fetch_name_and_aliases_wikidata(wiki_url)
+        for relation_alias in relation_aliases:
+            relations.append(relation_alias)
+    except:
+        pass
 
     return relations
 
@@ -170,8 +189,9 @@ def sparql_query_dbpedia(subj, obj):
             if 'wikiPageWikiLink' in r_url:
                 continue
             elif 'property' in r_url:
-                relation = r_url.replace('http://dbpedia.org/property/', '')
-                relations.append(relation)
+                relation = fetch_name_and_aliases_dbpedia(r_url)
+                for item in relation:
+                    relations.append(item)
             elif 'ontology' in r_url:
                 relation = fetch_name_and_aliases_dbpedia(r_url)
                 for item in relation:
@@ -187,11 +207,11 @@ def sparql_query_dbpedia(subj, obj):
 
 # prompt = 'Is Beijing the capital of China?'
 # prompt = "Paris is capital of Nicaragua"
-prompt = 'What is the capital of Nicaragua?'
+# prompt = 'What is the capital of Nicaragua?'
 # prompt = "The capital of China is ..."
-# prompt = "Barack Obama was born in Hawaii. Yes or no?"
-# extracted_answer = 'yes'
-extracted_answer = 'Beijing'
+prompt = "Barack Obama was born in Hawaii. Yes or no?"
+extracted_answer = 'yes'
+# extracted_answer = 'Beijing'
 correctness = ''
 
 triplet_extractor = pipeline(
@@ -200,7 +220,7 @@ triplet_extractor = pipeline(
 
 
 def check_fact(prompt, extracted_answer, correctness):
-    # We need to use the tokenizer manually since we need special tokens.
+    # We need to use the tokenizer manually since we need special tokens
     extracted_text = triplet_extractor.tokenizer.batch_decode(
         [triplet_extractor(prompt, return_tensors=True, return_text=False)[0]["generated_token_ids"]]
     )
