@@ -11,7 +11,7 @@ Llama-2-13B-chat-GGUF下载地址：https://huggingface.co/TheBloke/Llama-2-13B-
 https://www.wikidata.org/wiki/Wikidata:SPARQL_query_service/queries/examples
 
 ## 目前模型缺陷：
-1. TASK 1: 没有做到实体消歧。
+1. TASK 1: 没有做到实体消歧。 ###不知道哪位同学有在做 entity linking 部分
 2. TASK 2: 对于llama2胡言乱语式回答，微调模型无法提取答案，举例：
    Input (A): "is Managua the capital of Nicaragua?"
    
@@ -24,7 +24,7 @@ Is Managua the capital"
    (1)使用的 Open IE API（老师说relation extraction可以用API）不稳定，会导致有时提取会出问题。
 
    (2)以wikidata为事实来源，所以导致不在wikidata上的relation无法判断真假。（但我看作业只要求了knowledge base，并没有要求web content，但有肯定更好
-   ### 更新： Fact checking部分同时查询wikidata以及DBpedia，代码结构也进行了调整。
+   ### 更新： Fact checking部分同时查询wikidata以及DBpedia，代码结构也进行了调整。目前已基本优化完毕。
    
 ## 参考  
 https://github.com/JamWithBread/WDPS-Project2022  
