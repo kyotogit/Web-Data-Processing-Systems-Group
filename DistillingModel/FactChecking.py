@@ -47,7 +47,7 @@ def fetch_wikidata(params):
 
 
 # Fetch the Wikidata ID of the entity
-def get_entity_id(entity):
+def fetch_entity_id(entity):
     params = {
         'action': 'wbsearchentities',
         'format': 'json',
@@ -82,13 +82,13 @@ def fetch_name_and_aliases_wikidata(url):
     return relations
 
 
-# Perform a SPARQL query to get the relation between two entities
+# Perform a SPARQL query to get the relation between two entities from Wikidata
 def sparql_query_wikidata(subj, obj):
     if len(subj) == 0 or len(obj) == 0:
         relations = ['No relation found']
     else:
-        subj_id = get_entity_id(subj)
-        obj_id = get_entity_id(obj)
+        subj_id = fetch_entity_id(subj)
+        obj_id = fetch_entity_id(obj)
 
         url = 'https://query.wikidata.org/sparql'
         query = """
@@ -146,6 +146,7 @@ def fetch_name_and_aliases_dbpedia(url):
     return relations
 
 
+# Perform a SPARQL query to get the relation between two entities from DBpedia
 def sparql_query_dbpedia(subj, obj):
     subj = subj.replace(' ', '_')
     obj = obj.replace(' ', '_')
