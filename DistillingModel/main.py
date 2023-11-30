@@ -147,7 +147,8 @@ elif pattern_no.search(response):
 if condition == 0:
     for mention in entities.keys():
         if mention.lower() in extracted_answer:
-            extracted_answer = mention
+            extracted_answer_ = entities[mention].replace("https://en.wikipedia.org/wiki/", "")
+            extracted_answer = extracted_answer_.replace("_", " ")
             extracted_answer_linking = entities[mention]
 if extracted_answer == "Failed to extract the answer":
     condition = 1
