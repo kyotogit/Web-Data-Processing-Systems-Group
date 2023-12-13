@@ -11,7 +11,10 @@ Llama-2-13B-chat-GGUF下载地址：https://huggingface.co/TheBloke/Llama-2-13B-
 https://www.wikidata.org/wiki/Wikidata:SPARQL_query_service/queries/examples
 
 ## 目前模型缺陷：
-1. TASK 1: 没有做到实体消歧;缩写识别？。 ### 不知道哪位同学有在做 entity linking 部分
+1. TASK 1: 没有做到实体消歧;缩写识别？。 
+   - wikipedia里每个页面有个page.summary()和statement(question和answer生成)比较生成相似度，取最高
+   - summary很多，summary里面有个explain text不清楚有没有用
+   - 相似度计算用bert模型算余弦相似度
 2. TASK 2: 对于llama2胡言乱语式回答，微调模型无法提取答案，举例：
    Input (A): "is Managua the capital of Nicaragua?"
    
