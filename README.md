@@ -1,13 +1,4 @@
 # README #
-
-Llama-2-13B-chat-GGUF download address: https://huggingface.co/TheBloke/Llama-2-13B-chat-GGUF/blob/main/llama-2-13b-chat.Q4_K_M.gguf
-The fine-tuned model is in distilbert-base-uncased-answer-extraction.zip
-## Overview ##
-
-This project contains resources and tools for natural language processing tasks.
-
----
-
 ## Fine-Tuned Model: Llama-2-13B-chat-GGUF ##
 
 ### Download Model ###
